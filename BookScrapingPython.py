@@ -1,5 +1,6 @@
 import csv
 import requests
+import os
 from bs4 import BeautifulSoup
 
 ## Etape 1 _ Récupération dees infos sur une page produit de https://books.toscrape.com/
@@ -66,5 +67,25 @@ def write_books_information(category, books_links):
       print(book)
       writer.writerow(get_book_information(book))
 
+category_index = 6
+write_books_information(listTextCategories[category_index],get_books_information(listLink[category_index]))
 
-write_books_information(listTextCategories[1],get_books_information(listLink[1]))
+
+## Etape 3 _ Récupération des images
+
+# Récupération de l'image d'un livre et enregistrement dans un fichier
+
+url2 = "https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html"
+
+def getBookImage(url):
+  response = requests.get(url)
+  soup = BeautifulSoup(response.text, "html.parser")
+  bookImage = soup.find("img").get("src").replace("../..", "https://books.toscrape.com")
+  bookTitle = soup.find("h1").string.replace(" ", "_")
+  response = requests.get(bookImage)
+  if not os.path.exists("images"):
+    os.makedirs("images")
+  with open(f"images/{bookTitle}.jpg", "wb") as img_file:
+    img_file.write(response.content)
+
+getBookImage(url2)
