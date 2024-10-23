@@ -3,6 +3,10 @@ import requests
 import os
 from bs4 import BeautifulSoup
 
+validCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+def cleanName(name):
+  return ''.join(c for c in name if c in validCharacters)
+
 ## Etape 1 _ Récupération dees infos sur une page produit de https://books.toscrape.com/
 
 url = "https://books.toscrape.com/catalogue/its-only-the-himalayas_981/index.html"
@@ -16,7 +20,10 @@ def get_book_information(url):
   price_including_tax = soup.find("th", string="Price (incl. tax)").find_next("td").string.encode('utf-8').decode('utf-8')
   price_excluding_tax = soup.find("th", string="Price (excl. tax)").find_next("td").string.encode('utf-8').decode('utf-8')
   number_available = soup.find("th", string="Availability").find_next("td").string
-  product_description = soup.find("h2", string="Product Description").find_next("p").string
+  try :
+    product_description = soup.find("h2", string="Product Description").find_next("p").string
+  except :
+    product_description = "No description available"
   category = soup.find("ul", class_="breadcrumb").find_all("a")[2].string
   review_rating = soup.find("p", class_="star-rating").get("class")[1]
   image_url = soup.find("img").get("src").replace("../..", "https://books.toscrape.com")
@@ -49,26 +56,24 @@ def get_books_information(url):
   soup = BeautifulSoup(response.text, "html.parser")
   books = soup.find_all("h3")
   books_links = [a.find("a").get("href").replace("../../../", "https://books.toscrape.com/catalogue/") for a in books]
-  try:
-    next_page = url.replace("index.html", soup.find("li", class_="next").a.get("href"))
+  if soup.find("li", class_="next"):
+    next_page = url.replace(url.split("/")[-1], soup.find("li", class_="next").a.get("href"))
     books_links += get_books_information(next_page)
-  except AttributeError:
-    pass
   return books_links
 
 # Enregistrement des infos dans un fichier CSV
 # Fonction pour enregister les infos de la catégorie de rang i
 
 def write_books_information(category, books_links):
+  category = cleanName(category)
   with open(f"book_{category}.csv", "w", newline="", encoding="utf-8") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(["product_page_url", "universal_product_code", "title", "price_including_tax", "price_excluding_tax", "number_available", "product_description", "category", "review_rating", "image_url"])
     for book in books_links:
-      print(book)
       writer.writerow(get_book_information(book))
 
-category_index = 6
-write_books_information(listTextCategories[category_index],get_books_information(listLink[category_index]))
+category_index = 4
+#write_books_information(listTextCategories[category_index],get_books_information(listLink[category_index]))
 
 
 ## Etape 3 _ Récupération des images
@@ -81,11 +86,29 @@ def getBookImage(url):
   response = requests.get(url)
   soup = BeautifulSoup(response.text, "html.parser")
   bookImage = soup.find("img").get("src").replace("../..", "https://books.toscrape.com")
-  bookTitle = soup.find("h1").string.replace(" ", "_")
+  bookCategory = soup.find("ul", class_="breadcrumb").find_all("a")[2].string
+  bookTitle = soup.find("h1").string
   response = requests.get(bookImage)
-  if not os.path.exists("images"):
-    os.makedirs("images")
-  with open(f"images/{bookTitle}.jpg", "wb") as img_file:
+  if not os.path.exists(f"images/{cleanName(bookCategory)}"):
+    os.makedirs(f"images/{cleanName(bookCategory)}")
+  with open(f"images/{cleanName(bookCategory)}/{cleanName(bookTitle)}.jpg", "wb") as img_file:
     img_file.write(response.content)
 
-getBookImage(url2)
+################################################ getBookImage(url2)
+
+## Etaoe 4 _ Récupération des infos de tous les livres par catégorie
+
+# Récupération des infos des livres par categorie + images de tous les livres par catégorie
+
+def move_csv_to_folder(category):
+  os.rename(f"book_{cleanName(category)}.csv", f"images/{cleanName(category)}/book{cleanName(category)}.csv")
+
+def get_all_info():
+  for i in range(len(listTextCategories)):
+    print(listTextCategories[i])
+    write_books_information(listTextCategories[i],get_books_information(listLink[i]))
+    for book in get_books_information(listLink[i]):
+      getBookImage(book)
+    move_csv_to_folder(listTextCategories[i])
+
+get_all_info()
